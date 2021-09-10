@@ -1,1 +1,2 @@
-# rapid7-sql-queries[README.md](https://github.com/snk0752/rapid7-sql-queries/files/7143162/README.md)
+# rapid7-sql-queries
+A random collection of Nexpose SQL Export queries I've built for reporting vulnerability metrics.
