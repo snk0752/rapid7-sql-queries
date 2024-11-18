@@ -1,0 +1,68 @@
+#
+# SQL query to grab duplicated assets
+# Run this report and save it into csv
+SELECT da.host_name, lower(da.host_name), replace(lower(da.host_name),'.company.domain','') AS HostName, da.asset_id AS "Asset ID", da.ip_address AS "IP Address", da.mac_address AS "MAC Address", dau.unique_id AS "R7 Agent ID", da.sites AS "Sites", dos.description AS "Operating System", fad.first_discovered AS "First Discovered", fa.scan_finished AS "Last Scan Date", da.last_assessed_for_vulnerabilities AS "Last Assessed", fa.critical_vulnerabilities AS "Critical Vulnerabilities", fa.severe_vulnerabilities AS "Severe Vulnerabilities", fa.moderate_vulnerabilities AS "Moderate Vulnerabilities", fa.vulnerabilities AS "Total Vulnerabilities", fa.malware_kits AS "Malware Kits", fa.exploits AS "Exploits", to_char(round(fa.riskscore::numeric,0),'999G999G999') AS "Risk Score"
+FROM dim_asset da 
+JOIN fact_asset fa USING (asset_id)
+JOIN fact_asset_discovery fad USING (asset_id)
+JOIN dim_asset_unique_id dau USING (asset_id)
+JOIN dim_operating_system dos USING (operating_system_id)
+Where dau.source = 'R7 Agent'
+And replace(lower(da.host_name),'.company.domain','') in (select replace(lower(da.host_name),'.corp','') from dim_asset da group by replace(lower(da.host_name),'.company.domain','')HAVING count(*) > 1)
+ORDER BY replace(lower(da.host_name),'.company.domain','') ASC, da.asset_id ASC
+
+#
+# Run this python script (needs SDK deployed) with csv file as parameter
+from __future__ import print_function
+import time
+import rapid7vmconsole
+from rapid7vmconsole.rest import ApiException
+from pprint import pprint
+
+import base64
+import logging
+import sys
+
+config = rapid7vmconsole.Configuration(name='Rapid7')
+config.username = 'nxadmin'
+config.password = '**********'
+config.host = 'https://nxp.company.domain'
+config.verify_ssl = False
+config.assert_hostname = False
+config.proxy = None
+config.ssl_ca_cert = None
+config.connection_pool_maxsize = None
+config.cert_file = None
+config.key_file = None
+config.safe_chars_for_path_param = ''
+
+# Logging
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler(sys.stdout)
+ch.setLevel(logging.INFO)
+logger.addHandler(ch)
+config.debug = False
+
+
+auth = "%s:%s" % (config.username, config.password)
+auth = base64.b64encode(auth.encode('ascii')).decode()
+client = rapid7vmconsole.ApiClient(configuration=config)
+client.default_headers['Authorization'] = "Basic %s" % auth
+
+# create an instance of the API class
+api_instance = rapid7vmconsole.AssetApi(client)
+
+with open("dups.txt","r") as a_file:
+    for asset_id in a_file:
+        try:
+            # Asset
+            api_response = api_instance.delete_asset(asset_id)
+            pprint(api_response)
+        except ApiException as e:
+            print("Exception when calling AssetApi->delete_asset: %s\n" % e)
+
+
+
+
+
